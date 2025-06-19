@@ -1,5 +1,5 @@
 <template>
-  <div :class="recordClasses" @click="handleClick">
+  <div :class="recordClasses">
     <!-- 记录头部 -->
     <div class="record-header">
       <div class="header-left">
@@ -30,7 +30,7 @@
       </div>
 
       <!-- 开奖结果 -->
-      <div v-if="record.dice_results" class="dice-section">
+      <div v-if="record.dice_results && record.dice_results.length > 0" class="dice-section">
         <div class="dice-label">开奖结果</div>
         <div class="dice-container">
           <div 
@@ -40,8 +40,30 @@
           >
             {{ dice }}
           </div>
-          <!-- <div class="dice-total">= {{ record.dice_total }}</div> -->
         </div>
+      </div>
+    </div>
+
+    <!-- 投注详情区域 (新增) -->
+    <div v-if="hasBetDetails()" class="betting-detail-section">
+      <div class="detail-row">
+        <span class="detail-label">投注:</span>
+        <span class="detail-value bet-detail">{{ getBettingContent() }}</span>
+      </div>
+      
+      <div class="detail-row" v-if="getResultContent()">
+        <span class="detail-label">开奖:</span>
+        <span class="detail-value result-detail">{{ getResultContent() }}</span>
+      </div>
+      
+      <div class="detail-row" v-if="getOdds()">
+        <span class="detail-label">赔率:</span>
+        <span class="detail-value odds-detail">{{ getOdds() }}</span>
+      </div>
+      
+      <div class="detail-row">
+        <span class="detail-label">结果:</span>
+        <span class="detail-value" :class="getResultClass()">{{ getFinalResult() }}</span>
       </div>
     </div>
   </div>
@@ -49,7 +71,34 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { BettingRecord } from '@/types/bettingHistory'
+
+// 根据实际数据结构定义接口
+interface BetDetail {
+  bet_type?: string
+  bet_amount?: number
+  bet_type_name?: string
+  is_win?: boolean
+  odds?: string
+  rate_id?: number
+  win_amount?: number
+}
+
+interface BettingRecord {
+  id?: string | number
+  game_number?: string | number
+  table_id?: string
+  user_id?: string
+  bet_time?: string
+  total_bet_amount?: number
+  total_win_amount?: number
+  dice_results?: string[]
+  dice_total?: number
+  status?: string
+  currency?: string
+  is_settled?: boolean
+  net_amount?: number
+  bet_details?: BetDetail[]
+}
 
 // Props
 interface Props {
@@ -61,7 +110,7 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   showActions: false,
-  clickable: true,
+  clickable: false,
   theme: 'default'
 })
 
@@ -72,12 +121,16 @@ const emit = defineEmits<{
 
 // 计算属性
 const recordClasses = computed(() => {
+  const firstBetDetail = props.record.bet_details?.[0]
+  const isWin = firstBetDetail?.is_win || false
+  const winAmount = props.record.total_win_amount || 0
+  
   return [
     'betting-record-item',
     {
       'clickable': props.clickable,
-      'win-record': props.record.total_win_amount > 0,
-      'lose-record': props.record.total_win_amount === 0 && props.record.status !== 'pending',
+      'win-record': isWin || winAmount > 0,
+      'lose-record': (!isWin || winAmount <= 0) && props.record.status !== 'pending',
       'pending-record': props.record.status === 'pending',
       'cancelled-record': props.record.status === 'cancelled',
       'processing-record': props.record.status === 'processing',
@@ -87,11 +140,14 @@ const recordClasses = computed(() => {
 })
 
 // 方法
-const formatMoney = (amount: number): string => {
+const formatMoney = (amount: number | undefined): string => {
+  if (amount === undefined || amount === null) return '0.00'
   return amount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-const formatDateTime = (dateString: string): string => {
+const formatDateTime = (dateString: string | undefined): string => {
+  if (!dateString) return '-'
+  
   const date = new Date(dateString)
   return date.toLocaleString('zh-CN', {
     month: '2-digit',
@@ -101,26 +157,136 @@ const formatDateTime = (dateString: string): string => {
   })
 }
 
-const getStatusText = (status: string): string => {
+const getStatusText = (status: string | undefined): string => {
   const statusMap: Record<string, string> = {
     'pending': '待开奖',
     'win': '已中奖',
     'lose': '未中奖',
+    'lost': '未中奖',
     'cancelled': '已取消',
     'processing': '处理中'
   }
-  return statusMap[status] || '未知'
+  return statusMap[status || ''] || '未知'
 }
 
-const getStatusColor = (status: string): string => {
+const getStatusColor = (status: string | undefined): string => {
   const colorMap: Record<string, string> = {
     'pending': '#ff9800',
     'win': '#4caf50',
     'lose': '#f44336',
+    'lost': '#f44336',
     'cancelled': '#9e9e9e',
     'processing': '#2196f3'
   }
-  return colorMap[status] || '#9e9e9e'
+  return colorMap[status || ''] || '#9e9e9e'
+}
+
+// 检查是否有投注详情
+const hasBetDetails = (): boolean => {
+  return !!(props.record.bet_details && props.record.bet_details.length > 0 && props.record.bet_details[0].bet_type_name)
+}
+
+// 解析投注内容
+const getBettingContent = (): string => {
+  const firstBetDetail = props.record.bet_details?.[0]
+  if (!firstBetDetail?.bet_type_name) return '-'
+  
+  try {
+    // 从 bet_type_name 中提取 "购买：xxx" 部分
+    const buyMatch = firstBetDetail.bet_type_name.match(/购买：([^,]+)/)
+    if (buyMatch) {
+      return buyMatch[1].trim()
+    }
+    
+    // 如果没有找到"购买："，尝试提取第一个部分（如："大(11-17)"）
+    const firstPart = firstBetDetail.bet_type_name.split('-')[0]
+    if (firstPart) {
+      return firstPart.trim()
+    }
+    
+    return '-'
+  } catch (error) {
+    console.error('解析投注内容失败:', error)
+    return '-'
+  }
+}
+
+// 解析开奖结果内容
+const getResultContent = (): string => {
+  const firstBetDetail = props.record.bet_details?.[0]
+  if (!firstBetDetail?.bet_type_name) return ''
+  
+  try {
+    // 从 bet_type_name 中提取 "开：xxx" 部分，到"本次结果记录"之前或字符串末尾
+    const openMatch = firstBetDetail.bet_type_name.match(/开：([^|]*(?:\|[^|]*)*?)(?=\|\|本次结果记录|$)/)
+    if (openMatch) {
+      return openMatch[1].trim()
+    }
+    
+    // 如果没有找到"开："，尝试从逗号后面提取
+    const commaIndex = firstBetDetail.bet_type_name.indexOf(',')
+    if (commaIndex !== -1) {
+      const afterComma = firstBetDetail.bet_type_name.substring(commaIndex + 1)
+      // 移除"本次结果记录"及之后的内容
+      const cleanResult = afterComma.replace(/\|\|本次结果记录.*$/, '').trim()
+      return cleanResult
+    }
+    
+    return ''
+  } catch (error) {
+    console.error('解析开奖结果失败:', error)
+    return ''
+  }
+}
+
+// 获取赔率
+const getOdds = (): string => {
+  const firstBetDetail = props.record.bet_details?.[0]
+  if (!firstBetDetail?.odds) return ''
+  
+  return firstBetDetail.odds
+}
+
+// 获取最终结果
+const getFinalResult = (): string => {
+  if (props.record.status === 'pending') {
+    return '待开奖'
+  }
+  
+  if (props.record.status === 'cancelled') {
+    return '已取消'
+  }
+  
+  const firstBetDetail = props.record.bet_details?.[0]
+  
+  // 优先使用 bet_details 中的 is_win 字段
+  if (firstBetDetail?.is_win !== undefined) {
+    return firstBetDetail.is_win ? '中奖' : '未中奖'
+  }
+  
+  // 否则根据 total_win_amount 判断
+  const winAmount = props.record.total_win_amount || 0
+  return winAmount > 0 ? '中奖' : '未中奖'
+}
+
+// 获取结果样式类
+const getResultClass = (): string => {
+  if (props.record.status === 'pending') {
+    return 'pending-result'
+  }
+  
+  if (props.record.status === 'cancelled') {
+    return 'cancelled-result'
+  }
+  
+  const firstBetDetail = props.record.bet_details?.[0]
+  
+  if (firstBetDetail?.is_win !== undefined) {
+    return firstBetDetail.is_win ? 'win-result' : 'lose-result'
+  }
+  
+  const winAmount = props.record.total_win_amount || 0
+  return winAmount > 0 ? 'win-result' : 'lose-result'
 }
 
 const handleClick = () => {
@@ -220,6 +386,7 @@ const handleClick = () => {
   display: flex;
   gap: 16px;
   align-items: flex-start;
+  margin-bottom: 12px;
 }
 
 .amount-section {
@@ -297,13 +464,71 @@ const handleClick = () => {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
-.dice-total {
-  margin-left: 6px;
+/* 新增：投注详情区域样式 */
+.betting-detail-section {
+  margin-top: 12px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.detail-row:last-child {
+  margin-bottom: 0;
+}
+
+.detail-label {
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.8);
+  color: rgba(255, 255, 255, 0.6);
+  min-width: 40px;
   font-weight: 500;
-  padding: 2px 4px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 3px;
+}
+
+.detail-value {
+  font-size: 12px;
+  font-weight: 500;
+  text-align: right;
+  flex: 1;
+  margin-left: 8px;
+}
+
+.detail-value.bet-detail {
+  color: #2196f3;
+}
+
+.detail-value.result-detail {
+  color: #ff9800;
+}
+
+.detail-value.odds-detail {
+  color: rgba(255, 255, 255, 0.8);
+  font-family: 'Courier New', monospace;
+}
+
+.detail-value.win-result {
+  color: #4caf50;
+  font-weight: 600;
+}
+
+.detail-value.lose-result {
+  color: #f44336;
+  font-weight: 600;
+}
+
+.detail-value.pending-result {
+  color: #ff9800;
+  font-weight: 600;
+}
+
+.detail-value.cancelled-result {
+  color: #9e9e9e;
+  font-weight: 600;
 }
 </style>
