@@ -17,7 +17,7 @@ interface BettingSettings {
   debugMode: boolean
 }
 
-// 🔥 新增：getBetTypeId 函数 - 将投注类型转换为API需要的ID（根据真实数据库数据）
+// 🔥 修正：getBetTypeId 函数 - 修复命名匹配和默认值问题
 const getBetTypeId = (betType: string): number => {
   const betTypeMap: Record<string, number> = {
     // 大小单双 (ID: 304-307)
@@ -26,21 +26,22 @@ const getBetTypeId = (betType: string): number => {
     'odd': 306,      // 单
     'even': 307,     // 双
     
-    // 总和投注 (ID: 308-321)
-    'sum-4': 308,    // 总和4
-    'sum-5': 309,    // 总和5
-    'sum-6': 310,    // 总和6
-    'sum-7': 311,    // 总和7
-    'sum-8': 312,    // 总和8
-    'sum-9': 313,    // 总和9
-    'sum-10': 314,   // 总和10
-    'sum-11': 315,   // 总和11
-    'sum-12': 316,   // 总和12
-    'sum-13': 317,   // 总和13
-    'sum-14': 318,   // 总和14
-    'sum-15': 319,   // 总和15
-    'sum-16': 320,   // 总和16
-    'sum-17': 321,   // 总和17
+    // 总和投注 (ID: 308-321) 
+    // 🔥 关键修复：改为 total-X 匹配组件
+    'total-4': 308,    // 总和4
+    'total-5': 309,    // 总和5
+    'total-6': 310,    // 总和6
+    'total-7': 311,    // 总和7
+    'total-8': 312,    // 总和8
+    'total-9': 313,    // 总和9
+    'total-10': 314,   // 总和10 ⬅️ 这就是你要的！
+    'total-11': 315,   // 总和11
+    'total-12': 316,   // 总和12
+    'total-13': 317,   // 总和13
+    'total-14': 318,   // 总和14
+    'total-15': 319,   // 总和15
+    'total-16': 320,   // 总和16
+    'total-17': 321,   // 总和17
     
     // 单骰投注 (ID: 322-327)
     'single-1': 322, // 单骰1
@@ -85,7 +86,17 @@ const getBetTypeId = (betType: string): number => {
     'combo-5-6': 355  // 组合5-6
   }
   
-  return betTypeMap[betType] || 304  // 默认返回"小"的ID
+  // 🔥 关键修复：移除危险的默认值，找不到就报错
+  const mappedId = betTypeMap[betType]
+  
+  if (!mappedId) {
+    console.error(`❌ 未找到投注类型映射: ${betType}`)
+    console.error(`❌ 可用的投注类型:`, Object.keys(betTypeMap))
+    throw new Error(`未找到投注类型映射: ${betType}`)
+  }
+  
+  console.log(`✅ 投注类型映射: ${betType} -> ${mappedId}`)
+  return mappedId
 }
 
 export const useBettingStore = defineStore('betting', () => {
