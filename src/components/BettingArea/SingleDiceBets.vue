@@ -48,7 +48,7 @@
             <div class="dice-number">{{ dice.value }}</div>
             
             <!-- 赔率显示 -->
-            <div class="dice-odds">动态赔率</div>
+            <div class="dice-odds">1:1</div>
           </div>
 
           <!-- 按钮边框装饰 -->

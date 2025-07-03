@@ -240,7 +240,7 @@ const safeBetLimits = computed(() => {
                    table.limits?.max ||
                    table.max_bet ||
                    20000
-      return `20-${limit.toLocaleString()}`
+      return `${limit.toLocaleString()}`
     }
     return '20-20,000'
   } catch (error) {
