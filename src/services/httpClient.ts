@@ -5,21 +5,17 @@ import axios, {
   AxiosResponse, 
   AxiosError 
 } from 'axios'
-import type { ApiResponse, ApiConfig } from '@/types/api'
+import type { ApiConfig } from '@/types/api'
 
 // 安全的环境变量获取函数
-const getEnvVar = (key: string, defaultValue: string = ''): string => {
-  try {
-    return import.meta.env[key] || defaultValue
-  } catch (error) {
-    return defaultValue
-  }
+const getEnvVar = (key: string): string => {
+  return import.meta.env[key]
 }
 
 // 默认配置
 const defaultConfig: ApiConfig = {
-  baseURL: getEnvVar('VITE_API_BASE_URL', 'https://sicboapi.wuming888.com'),
-  wsURL: getEnvVar('VITE_WS_URL', 'wss://wsssicbo.wuming888.com'),
+  baseURL: getEnvVar('VITE_API_BASE_URL'),
+  wsURL: getEnvVar('VITE_WS_URL'),
   timeout: 10000,
   retryAttempts: 3,
   retryDelay: 1000

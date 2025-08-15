@@ -89,8 +89,8 @@ export const logEnvInfo = (): void => {
 // 环境配置对象 - 修复API地址
 export const ENV_CONFIG = {
   // 修复：移除 /api 后缀，让每个接口自己指定完整路径
-  API_BASE_URL: getEnvVar('VITE_API_BASE_URL', 'https://sicboapi.wuming888.com'),
-  WS_URL: getEnvVar('VITE_WS_URL', 'wss://wsssicbo.wuming888.com'),
+  API_BASE_URL: getEnvVar('VITE_API_BASE_URL', ''),
+  WS_URL: getEnvVar('VITE_WS_URL', ''),
   
   // 开发配置
   ENABLE_MOCK: getEnvBoolean('VITE_ENABLE_MOCK', false),

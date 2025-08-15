@@ -58,8 +58,7 @@ export class GameWebSocketService {
   }
 
   private buildWSURL(): string {
-    const baseURL = import.meta.env.VITE_WS_URL || 'wss://wsssicbo.wuming888.com'
-    return baseURL
+    return import.meta.env['VITE_WS_URL']
   }
 
   private initEventListeners(): void {
